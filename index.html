@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Generador de Modelo MiniZinc</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="bg-[#AED6F1] text-gray-800 flex items-center justify-center min-h-screen">
+    <div class="bg-white shadow-2xl rounded-lg p-8 w-full max-w-3xl">
+      <h1 class="text-3xl font-extrabold text-[#3498db] text-center mb-6">
+        <i class="fas fa-fire mr-2 text-orange-500"></i> Yo Soy El Peligro
+      </h1>
+      <textarea
+        id="inputData"
+        class="w-full h-40 p-4 border-2 border-orange-500 rounded-lg focus:outline-none focus:ring-4 focus:ring-orange-400 mb-6 placeholder-gray-400"
+        placeholder="Introduce los datos aquí..."
+      ></textarea>
+
+      <div class="flex justify-center space-x-6 mb-6">
+        <button
+        <button
+  class="flex items-center bg-[#3498DB] text-white px-6 py-3 rounded-lg shadow-md hover:bg-[#1F78B4] hover:shadow-lg transition"
+  onclick="generateMiniZinc()"
+>
+  <i class="fas fa-cogs mr-2"></i> Generar MiniZinc
+</button>
+
+        <button
+          class="flex items-center bg-gray-500 text-white px-6 py-3 rounded-lg shadow-md hover:bg-gray-600 hover:shadow-lg transition"
+          onclick="copyToClipboard()"
+        >
+          <i class="fas fa-copy mr-2"></i> Copiar al portapapeles
+        </button>
+      </div>
+      <textarea
+        id="outputData"
+        class="w-full h-40 p-4 border-2 border-gray-300 rounded-lg bg-gray-100 focus:outline-none readonly placeholder-gray-500"
+        readonly
+        placeholder="Aquí se generará el código MiniZinc..."
+      ></textarea>
+      <footer class="mt-6 text-center text-sm text-gray-500">
+        <p>
+          Desarrollado con <i class="fas fa-heart text-red-500"></i> por Dahian Sanchez, Jesus Gil y Bryam Briñez
+        </p>
+      </footer>
+    </div>
+
+    <script>
+      function generateMiniZinc() {
+        const inputData = document.getElementById("inputData").value.trim();
+        if (!inputData) {
+          alert("Por favor, introduce los datos de entrada.");
+          return;
+        }
+
+        const lines = inputData.split("\n");
+
+        let idx = 0;
+        const N = parseInt(lines[idx++]); // Número de productos
+        const M = parseInt(lines[idx++]); // Número de materias primas
+
+        // Procesar productos
+        let productos = [];
+        for (let i = 0; i < N; i++) {
+          const [nombre, precio, ...usos] = lines[idx++].split(" ");
+          productos.push({
+            nombre,
+            precio: parseInt(precio),
+            usos: usos.map(Number),
+          });
+        }
+
+        // Procesar materias primas
+        let materias = [];
+        for (let i = 0; i < M; i++) {
+          const [nombre, costo, disponibilidad] = lines[idx++].split(" ");
+          materias.push({
+            nombre,
+            costo: parseInt(costo),
+            disponibilidad: parseInt(disponibilidad),
+          });
+        }
+
+        // Procesar restricciones de demanda
+        let demandas_min = Array(N).fill(0);
+        let demandas_max = Array(N).fill(9999);
+        while (idx < lines.length) {
+          const [producto, tipo, valor] = lines[idx++].split(" ");
+          const productoIdx = productos.findIndex((p) => p.nombre === producto);
+          if (tipo === "minimo") demandas_min[productoIdx] = parseInt(valor);
+          if (tipo === "maximo") demandas_max[productoIdx] = parseInt(valor);
+        }
+
+        // Generar modelo MiniZinc
+        let minizincCode = `
+int: N = ${N};
+int: M = ${M};
+
+array[1..N] of string: nombres_productos = [${productos
+          .map((p) => `"${p.nombre}"`)
+          .join(", ")}];
+array[1..N] of int: precios = [${productos.map((p) => p.precio).join(", ")}];
+array[1..M, 1..N] of int: usos = [|
+${productos[0].usos
+  .map((_, j) => productos.map((p) => p.usos[j]).join(", "))
+  .join(" |\n")}|];
+
+array[1..M] of int: disponibilidades = [${materias
+          .map((m) => m.disponibilidad)
+          .join(", ")}];
+array[1..N] of int: demandas_min = [${demandas_min.join(", ")}];
+array[1..N] of int: demandas_max = [${demandas_max.join(", ")}];
+
+array[1..N] of var int: x;
+
+var int: Z = sum(i in 1..N) (x[i] * precios[i]);
+
+constraint forall(j in 1..M) (
+    sum(i in 1..N) (usos[j, i] * x[i]) <= disponibilidades[j]
+);
+
+constraint forall(i in 1..N) (
+    demandas_min[i] <= x[i]
+);
+constraint forall(i in 1..N) (
+    x[i] <= demandas_max[i]
+);
+
+solve maximize Z;
+
+output [
+    "Producción óptima:\\n"] ++
+    [ nombres_productos[i] ++ ": " ++ show(x[i]) ++ " unidades\\n" | i in 1..N ] ++
+    ["\\nGanancia total: " ++ show(Z) ++ " pesos"];
+`;
+
+        document.getElementById("outputData").value = minizincCode.trim();
+      }
+
+      function copyToClipboard() {
+        const outputData = document.getElementById("outputData");
+        outputData.select();
+        document.execCommand("copy");
+        alert("Código MiniZinc copiado al portapapeles.");
+      }
+    </script>
+  </body>
+</html>
