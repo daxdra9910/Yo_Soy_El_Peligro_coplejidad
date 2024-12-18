@@ -50,7 +50,7 @@
       <footer class="mt-6 text-center text-sm text-gray-500">
         <p>
           Desarrollado con <i class="fas fa-heart text-red-500"></i> por Dahian
-          Sanchez, Jesus Gil y Bryam Briñez
+          Sanchez, Jesus Gil y Bryan Briñez
         </p>
       </footer>
     </div>
@@ -123,15 +123,15 @@ array[1..N] of int: demandas_max = [${demandas_max.join(", ")}];
 
 array[1..N] of var int: x;
 
-var int: Z = sum(i in 1..N) (x[i] * precios[i]); //funcion objetivo 
+var int: Z = sum(i in 1..N) (x[i] * precios[i]); 
 
-//disponiblidad de materias primas
+
 constraint forall(j in 1..M) (
     sum(i in 1..N) (usos[j, i] * x[i]) <= disponibilidades[j]
 );
 
 
-//Restricciones de demanda mínima y máxima
+
 constraint forall(i in 1..N) (
     demandas_min[i] <= x[i]
 );
